@@ -1,4 +1,4 @@
-FROM php:7.1-apache
+FROM php:7.3-apache
 
 MAINTAINER Rafael Corrêa Gomes <rafaelcgstz@gmail.com>
 
@@ -22,7 +22,7 @@ RUN apt-get update \
 	apt-utils \
 	gnupg \
 	redis-tools \
-	mysql-client \
+	mariadb-client \
 	git \
 	vim \
 	wget \
@@ -32,7 +32,9 @@ RUN apt-get update \
 	unzip \
 	tar \
 	cron \
+	libzip-dev \
 	bash-completion \
+	openssh-server \
 	&& apt-get clean
 
 # Install Magento Dependencies
@@ -45,7 +47,6 @@ RUN docker-php-ext-configure \
   	bcmath \
   	intl \
   	mbstring \
-  	mcrypt \
   	pdo_mysql \
   	soap \
   	xsl \
@@ -62,16 +63,12 @@ RUN apt-get update \
   	&& echo "extension=oauth.so" > /usr/local/etc/php/conf.d/docker-php-ext-oauth.ini
 
 # Install Node, NVM, NPM and Grunt
-
-RUN curl -sL https://deb.nodesource.com/setup_6.x | bash - \
-  	&& apt-get install -y nodejs build-essential \
-    && curl https://raw.githubusercontent.com/creationix/nvm/v0.16.1/install.sh | sh \
-    && npm i -g grunt-cli yarn
+RUN apt install -y nodejs npm && npm i -g grunt-cli yarn
 
 # Install Composer
 
 RUN	curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer
-RUN composer global require hirak/prestissimo
+#RUN composer global require hirak/prestissimo
 
 # Install Code Sniffer
 
@@ -99,6 +96,17 @@ RUN wget https://files.magerun.net/n98-magerun2.phar \
 	&& chmod +x ./n98-magerun2.phar \
 	&& mv ./n98-magerun2.phar /usr/local/bin/
 
+
+# SSH login fix. Otherwise user is kicked off after login
+RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+RUN mkdir /var/run/sshd
+RUN bash -c 'install -m755 <(printf "#!/bin/sh\nexit 0") /usr/sbin/policy-rc.d'
+RUN ex +'%s/^#\zeListenAddress/\1/g' -scwq /etc/ssh/sshd_config
+RUN ex +'%s/^#\zeHostKey .*ssh_host_.*_key/\1/g' -scwq /etc/ssh/sshd_config
+RUN RUNLEVEL=1 dpkg-reconfigure openssh-server
+RUN ssh-keygen -A -v
+RUN update-rc.d ssh defaults
+
 # Configuring system
 
 ADD .docker/config/php.ini /usr/local/etc/php/php.ini
@@ -106,6 +114,7 @@ ADD .docker/config/magento.conf /etc/apache2/sites-available/magento.conf
 ADD .docker/config/custom-xdebug.ini /usr/local/etc/php/conf.d/custom-xdebug.ini
 COPY .docker/bin/* /usr/local/bin/
 COPY .docker/users/* /var/www/
+COPY .docker/config/sshd_config /etc/ssh/
 RUN chmod +x /usr/local/bin/*
 RUN ln -s /etc/apache2/sites-available/magento.conf /etc/apache2/sites-enabled/magento.conf
 
@@ -120,6 +129,15 @@ RUN chmod 777 -Rf /var/www /var/www/.* \
 	&& chsh -s /bin/bash www-data\
 	&& a2enmod rewrite \
 	&& a2enmod headers
+
+# RUN sed -i 's/www-data:x:5577:33:/www-data:x:33:33:/g' /etc/passwd
+# CMD /etc/init.d/ssh start
+CMD /usr/sbin/sshd -D
+USER www-data
+RUN ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
+#COPY --chown=www-data:www-data "./files/authorized_keys" /var/www/.ssh/authorized_keys
+
+USER root
 
 VOLUME /var/www/html
 WORKDIR /var/www/html

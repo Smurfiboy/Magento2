@@ -1,11 +1,11 @@
-version: '2'
+version: '3'
 services:
   apache:
-    image: rafaelcgstz/magento2
-    # build: .
+    build: .
     ports:
       - "80:80" # web
       - "9001:9000" # xdebug
+      - "22:22"
       # - "35729:35729" # live reload
     volumes:
       - ./src:/var/www/html
@@ -73,7 +73,3 @@ services:
 networks:
   <project_name>-network:
     driver: bridge
-
-volumes:
-  dbdata:
-    driver: local
