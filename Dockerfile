@@ -2,7 +2,10 @@ FROM php:7.3-apache
 
 MAINTAINER Rafael Corrêa Gomes <rafaelcgstz@gmail.com>
 
-ENV XDEBUG_PORT 9000
+ENV XDEBUG_PORT=9000
+ENV XDEBUG_SESSION=PHPSTORM
+ENV XDEBUG_CONFIG="remote_host=localhost"
+ENV PHP_IDE_CONFIG="serverName=localhost"
 
 # Install System Dependencies
 
@@ -35,7 +38,15 @@ RUN apt-get update \
 	libzip-dev \
 	bash-completion \
 	openssh-server \
+	nano \
+	vim \
+	less \
+	libpcre3 \
+    libpcre3-dev \
 	&& apt-get clean
+
+# Install oAuth
+#RUN pecl channel-update pecl.php.net && pecl install oauth
 
 # Install Magento Dependencies
 
@@ -51,24 +62,15 @@ RUN docker-php-ext-configure \
   	soap \
   	xsl \
   	zip
-
-# Install oAuth
-
-RUN apt-get update \
-  	&& apt-get install -y \
-  	libpcre3 \
-  	libpcre3-dev \
-  	# php-pear \
-  	&& pecl install oauth \
-  	&& echo "extension=oauth.so" > /usr/local/etc/php/conf.d/docker-php-ext-oauth.ini
+  	#oauth
 
 # Install Node, NVM, NPM and Grunt
-RUN apt install -y nodejs npm && npm i -g grunt-cli yarn
+RUN apt install -y nodejs npm && npm i -g grunt grunt-cli yarn
 
 # Install Composer
 
-RUN	curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer
-#RUN composer global require hirak/prestissimo
+RUN	curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer --1
+RUN composer global require hirak/prestissimo
 
 # Install Code Sniffer
 
@@ -131,13 +133,14 @@ RUN chmod 777 -Rf /var/www /var/www/.* \
 	&& a2enmod headers
 
 # RUN sed -i 's/www-data:x:5577:33:/www-data:x:33:33:/g' /etc/passwd
-# CMD /etc/init.d/ssh start
+#CMD /etc/init.d/ssh start
 CMD /usr/sbin/sshd -D
 USER www-data
 RUN ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
 #COPY --chown=www-data:www-data "./files/authorized_keys" /var/www/.ssh/authorized_keys
 
 USER root
+#RUN echo -e "www\nwww" | passwd www-data
 
 VOLUME /var/www/html
 WORKDIR /var/www/html
